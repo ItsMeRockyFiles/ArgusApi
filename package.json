@@ -8,6 +8,7 @@
     "start": "node src/server.js",
     "dev": "nodemon --ignore data/ src/server.js",
     "build:sdn": "node scripts/build-sdn.js",
+    "vercel-build": "node scripts/build-sdn.js",
     "test": "node --test tests/*.test.js"
   },
   "nodemonConfig": {
