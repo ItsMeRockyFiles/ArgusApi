@@ -6,6 +6,7 @@ import { screenEntity } from './screen.js';
 import { buildSdnDatabase } from '../scripts/build-sdn.js';
 import logger from './logger.js';
 import { ValidationError } from './errors.js';
+import { rapidApiAuth } from './middleware/rapidApiAuth.js';
 
 dotenv.config();
 
@@ -130,11 +131,11 @@ const handleScreenRequest = (req, res) => {
   }
 };
 
-app.get('/api/screen', handleScreenRequest);
-app.post('/api/screen', handleScreenRequest);
+app.get('/api/screen', rapidApiAuth, handleScreenRequest);
+app.post('/api/screen', rapidApiAuth, handleScreenRequest);
 
 // Get SDN entry by UID
-app.get('/api/sdn/:uid', (req, res) => {
+app.get('/api/sdn/:uid', rapidApiAuth, (req, res) => {
   const uid = parseInt(req.params.uid, 10);
   if (Number.isNaN(uid)) {
     return res.status(400).json({ error: 'Invalid UID parameter. Must be a numeric identifier.', code: 'INVALID_UID' });

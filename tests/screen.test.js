@@ -286,3 +286,50 @@ test('Health Readiness Check - 503 when store degraded vs 200 when loaded', asyn
     assert.ok(store.getStats().recordCount > 0, 'Store should have records after reload');
   }
 });
+
+test('RapidAPI Proxy Secret Authentication Middleware', async () => {
+  const originalSecret = process.env.RAPIDAPI_PROXY_SECRET;
+  try {
+    process.env.RAPIDAPI_PROXY_SECRET = 'my-secret-key-123';
+    const server = await new Promise((resolve) => {
+      const srv = app.listen(0, () => resolve(srv));
+    });
+    const port = server.address().port;
+    const baseUrl = `http://127.0.0.1:${port}`;
+
+    try {
+      // 1. Missing secret header -> 403 Forbidden
+      const resNoHeader = await fetch(`${baseUrl}/api/screen?name=Aerocaribbean`);
+      assert.equal(resNoHeader.status, 403);
+      const jsonNoHeader = await resNoHeader.json();
+      assert.equal(jsonNoHeader.code, 'UNAUTHORIZED');
+      assert.match(jsonNoHeader.error, /missing RapidAPI Proxy Secret/i);
+
+      // 2. Invalid secret header -> 403 Forbidden
+      const resWrongHeader = await fetch(`${baseUrl}/api/sdn/36`, {
+        headers: { 'X-RapidAPI-Proxy-Secret': 'wrong-secret' },
+      });
+      assert.equal(resWrongHeader.status, 403);
+      const jsonWrongHeader = await resWrongHeader.json();
+      assert.equal(jsonWrongHeader.code, 'UNAUTHORIZED');
+
+      // 3. Valid secret header -> 200 OK
+      const resValidHeader = await fetch(`${baseUrl}/api/screen?name=Aerocaribbean&threshold=70`, {
+        headers: { 'X-RapidAPI-Proxy-Secret': 'my-secret-key-123' },
+      });
+      assert.equal(resValidHeader.status, 200);
+
+      // 4. Public endpoints remain un-gated
+      const healthRes = await fetch(`${baseUrl}/health`);
+      assert.equal(healthRes.status, 200);
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  } finally {
+    if (originalSecret !== undefined) {
+      process.env.RAPIDAPI_PROXY_SECRET = originalSecret;
+    } else {
+      delete process.env.RAPIDAPI_PROXY_SECRET;
+    }
+  }
+});

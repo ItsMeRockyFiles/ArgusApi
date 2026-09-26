@@ -842,6 +842,19 @@
           }
         }
       }
+    },
+    "securitySchemes": {
+      "RapidApiSecret": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-RapidAPI-Proxy-Secret",
+        "description": "RapidAPI proxy secret header for request authentication."
+      }
     }
-  }
+  },
+  "security": [
+    {
+      "RapidApiSecret": []
+    }
+  ]
 }
