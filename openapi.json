@@ -595,6 +595,7 @@
       },
       "AkaEntry": {
         "type": "object",
+        "description": "Alias (AKA) entry with its own sub-entry UID. Not directly queryable via /api/sdn/{uid} — use the parent SDN record's UID.",
         "properties": {
           "uid": {
             "type": "integer",
@@ -631,6 +632,7 @@
       },
       "AddressEntry": {
         "type": "object",
+        "description": "Address entry with its own sub-entry UID. Not directly queryable via /api/sdn/{uid} — use the parent SDN record's UID.",
         "properties": {
           "uid": {
             "type": "integer",
@@ -676,6 +678,7 @@
       },
       "IdEntry": {
         "type": "object",
+        "description": "Identification document entry with its own sub-entry UID. Not directly queryable via /api/sdn/{uid} — use the parent SDN record's UID.",
         "properties": {
           "uid": {
             "type": "integer",
