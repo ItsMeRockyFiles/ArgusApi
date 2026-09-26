@@ -10,6 +10,7 @@ import { ValidationError } from './errors.js';
 dotenv.config();
 
 const app = express();
+app.disable('x-powered-by');
 const PORT = process.env.PORT || 3000;
 
 // Structured HTTP Request logger middleware (pino-http)
@@ -79,7 +80,7 @@ app.get('/health', (req, res) => {
     status: stats.isLoaded ? 'ok' : 'degraded',
     uptimeSeconds: process.uptime(),
     timestamp: new Date().toISOString(),
-    store: stats,
+    recordCount: stats.recordCount,
   });
 });
 
@@ -179,6 +180,12 @@ app.use((req, res) => {
 
 // Global Error Handler
 app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && (err.status === 400 || err.statusCode === 400) && 'body' in err) {
+    const log = req.log || logger;
+    log.warn({ err: err.message }, 'Malformed JSON request payload');
+    return res.status(400).json({ error: 'Malformed JSON payload in request body.' });
+  }
+
   if (err instanceof ValidationError || err.name === 'ValidationError') {
     const log = req.log || logger;
     log.warn({ err }, 'Validation error handled globally');

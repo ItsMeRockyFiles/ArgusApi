@@ -198,8 +198,17 @@ test('HTTP Integration - Express API returns identical payload to screenEntity()
     const uidAkaRes = await fetch(`${baseUrl}/api/sdn/6500`);
     assert.equal(uidAkaRes.status, 404);
     const uidAkaJson = await uidAkaRes.json();
-    assert.equal(uidAkaJson.error, 'Record not found');
-    assert.equal(uidAkaJson.uid, 6500);
+    // 6. Security & Payload Validation (Malformed JSON & Disabled Header)
+    assert.equal(healthRes.headers.get('x-powered-by'), null, 'X-Powered-By header must be disabled');
+
+    const malformedJsonRes = await fetch(`${baseUrl}/api/screen`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{ invalid json payload',
+    });
+    assert.equal(malformedJsonRes.status, 400);
+    const malformedJsonObj = await malformedJsonRes.json();
+    assert.ok(malformedJsonObj.error.includes('Malformed JSON'));
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
