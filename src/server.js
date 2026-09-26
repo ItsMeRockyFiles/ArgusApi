@@ -110,6 +110,7 @@ const handleScreenRequest = (req, res) => {
 
   try {
     const screeningResult = screenEntity(payload);
+    res.setHeader('Cache-Control', 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800');
     res.json(screeningResult);
   } catch (err) {
     if (err instanceof ValidationError || err.name === 'ValidationError') {
@@ -144,6 +145,7 @@ app.get('/api/sdn/:uid', (req, res) => {
     return res.status(404).json({ error: 'Record not found', code: 'RECORD_NOT_FOUND', uid });
   }
 
+  res.setHeader('Cache-Control', 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800');
   res.json({ record });
 });
 

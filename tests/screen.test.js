@@ -173,6 +173,7 @@ test('HTTP Integration - Express API routes, error codes, and endpoint coverage'
     const getRes = await fetch(`${baseUrl}/api/screen?name=Aerocaribbean&threshold=70`);
     assert.equal(getRes.status, 200);
     const getJson = await getRes.json();
+    assert.match(getRes.headers.get('cache-control'), /public, max-age=3600/);
     const directResult = screenEntity({ name: 'Aerocaribbean', threshold: 70 });
     assert.equal(getJson.totalMatches, directResult.totalMatches);
     assert.equal(getJson.results[0].uid, directResult.results[0].uid);
@@ -185,6 +186,7 @@ test('HTTP Integration - Express API routes, error codes, and endpoint coverage'
       body: JSON.stringify({ name: 'Muhammad Zaydan', threshold: 70 }),
     });
     assert.equal(postRes.status, 200);
+    assert.match(postRes.headers.get('cache-control'), /public, max-age=3600/);
     const postJson = await postRes.json();
     assert.ok(postJson.results.some((r) => r.uid === 2674));
 
@@ -211,6 +213,7 @@ test('HTTP Integration - Express API routes, error codes, and endpoint coverage'
     // 7. GET /api/sdn/:uid Handling
     const uidRes = await fetch(`${baseUrl}/api/sdn/36`);
     assert.equal(uidRes.status, 200);
+    assert.match(uidRes.headers.get('cache-control'), /public, max-age=3600/);
     const uidJson = await uidRes.json();
     assert.equal(uidJson.record.fullName, 'AEROCARIBBEAN AIRLINES');
 
