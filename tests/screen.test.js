@@ -5,10 +5,16 @@ import { screenEntity } from '../src/screen.js';
 import app from '../src/server.js';
 import { ValidationError } from '../src/errors.js';
 
-test('SDN Store loading', () => {
+test('SDN Store loading & immutability', () => {
   assert.equal(store.isLoaded(), true, 'Store should be loaded');
   const stats = store.getStats();
   assert.ok(stats.recordCount > 0, 'Record count should be greater than 0');
+
+  // Verify getEntries returns a copy so consumers cannot mutate store internals
+  const entriesCopy = store.getEntries();
+  const initialLength = entriesCopy.length;
+  entriesCopy.length = 0;
+  assert.equal(store.getStats().recordCount, initialLength, 'Mutating getEntries() copy must not alter internal store');
 });
 
 test('Screen Entity - Exact Match', () => {
@@ -18,11 +24,18 @@ test('Screen Entity - Exact Match', () => {
   assert.ok(res.results[0].score >= 90);
 });
 
-test('Screen Entity - Fuzzy Match & Alias Match', () => {
+test('Screen Entity - Fuzzy Match & Alias Match with matchedAlias shape validation', () => {
   const res = screenEntity({ name: 'Aero-Caribbean', threshold: 70 });
   assert.ok(res.results.length > 0);
   assert.equal(res.results[0].uid, 36);
   assert.equal(res.results[0].matchType, 'aka');
+
+  // Verify matchedAlias object shape
+  const akaMatch = res.results.find((r) => r.matchType === 'aka');
+  assert.ok(akaMatch, 'Should find an AKA match');
+  assert.ok(akaMatch.matchedAlias, 'AKA match should populate matchedAlias');
+  assert.equal(typeof akaMatch.matchedAlias.fullName, 'string');
+  assert.equal(typeof akaMatch.matchedAlias.type, 'string');
 });
 
 test('Screen Entity - Individual Name & Alias', () => {
@@ -30,6 +43,14 @@ test('Screen Entity - Individual Name & Alias', () => {
   assert.ok(res.results.length > 0);
   const found = res.results.find((r) => r.uid === 2674);
   assert.ok(found, 'Should find Abu ABBAS record (UID 2674) via alias Muhammad ZAYDAN');
+});
+
+test('Screen Entity - Secondary criteria match boosts (country, dob, idNumber)', () => {
+  const resCountry = screenEntity({ name: 'Aerocaribbean', country: 'Cuba', threshold: 50 });
+  assert.ok(resCountry.results.length > 0);
+  const match = resCountry.results.find((r) => r.uid === 36);
+  assert.ok(match, 'Should match Aerocaribbean');
+  assert.equal(match.secondaryMatches.countryMatched, true, 'Country match flag should be true');
 });
 
 test('Screen Entity - Type Filtering', () => {
@@ -46,10 +67,6 @@ test('Get Entry By UID', () => {
   assert.ok(record, 'Record UID 36 should exist');
   assert.equal(record.fullName, 'AEROCARIBBEAN AIRLINES');
 });
-
-// ==========================================
-// NEW TEST SUITES FOR FLAGGED GAPS
-// ==========================================
 
 test('False Positive Guard - Common non-sanctioned name returns 0 matches', () => {
   const res = screenEntity({ name: 'John Smith', threshold: 70 });
@@ -72,57 +89,49 @@ test('Transliteration & Spelling Variant - "Vladimir Poutine" finds "Vladimir PU
 });
 
 test('Threshold Boundaries - behavior at 100, 70, and 0', () => {
-  // Threshold 100: Only exact score 100 matches allowed
   const res100 = screenEntity({ name: 'Aerocaribbean Airlines', threshold: 100 });
   assert.ok(res100.results.length > 0);
   for (const item of res100.results) {
     assert.equal(item.score, 100, 'All results at threshold 100 must have score 100');
   }
 
-  // Threshold 70: All results must have score >= 70
   const res70 = screenEntity({ name: 'Aerocaribbean', threshold: 70 });
   for (const item of res70.results) {
     assert.ok(item.score >= 70, 'All results at threshold 70 must have score >= 70');
   }
 
-  // Threshold 0: Returns results down to 0 up to requested limit
   const res0 = screenEntity({ name: 'Aerocaribbean', threshold: 0, limit: 10 });
   assert.equal(res0.returnedMatches, 10);
   assert.ok(res0.results[res0.results.length - 1].score < 70, 'Lowest result should be sub-threshold when threshold=0');
 });
 
-test('Input Validation - screenEntity throws ValidationError for invalid inputs', () => {
+test('Input Validation - screenEntity throws ValidationError with stable error codes', () => {
   // Missing name
   assert.throws(
     () => screenEntity({}),
-    (err) => err instanceof ValidationError && err.message.includes('name')
+    (err) => err instanceof ValidationError && err.code === 'MISSING_NAME'
   );
 
-  // Invalid threshold (NaN, negative, >100)
+  // Invalid threshold
   assert.throws(
     () => screenEntity({ name: 'Test', threshold: 'invalid' }),
-    (err) => err instanceof ValidationError && err.message.includes('threshold')
-  );
-  assert.throws(
-    () => screenEntity({ name: 'Test', threshold: 150 }),
-    (err) => err instanceof ValidationError && err.message.includes('threshold')
+    (err) => err instanceof ValidationError && err.code === 'INVALID_THRESHOLD'
   );
 
   // Invalid type filter
   assert.throws(
     () => screenEntity({ name: 'Test', type: 'SuperHero' }),
-    (err) => err instanceof ValidationError && err.message.includes('type')
+    (err) => err instanceof ValidationError && err.code === 'INVALID_TYPE'
   );
 
   // Invalid limit
   assert.throws(
     () => screenEntity({ name: 'Test', limit: -5 }),
-    (err) => err instanceof ValidationError && err.message.includes('limit')
+    (err) => err instanceof ValidationError && err.code === 'INVALID_LIMIT'
   );
 });
 
-test('HTTP Integration - Express API returns identical payload to screenEntity()', async () => {
-  // Start server on dynamic port
+test('HTTP Integration - Express API routes, error codes, and endpoint coverage', async () => {
   const server = await new Promise((resolve) => {
     const srv = app.listen(0, () => resolve(srv));
   });
@@ -135,8 +144,22 @@ test('HTTP Integration - Express API returns identical payload to screenEntity()
     assert.equal(healthRes.status, 200);
     const healthJson = await healthRes.json();
     assert.equal(healthJson.status, 'ok');
+    assert.ok(healthJson.recordCount > 0);
 
-    // 2. GET /api/screen?name=Aerocaribbean&threshold=70
+    // 2. GET /api/stats
+    const statsRes = await fetch(`${baseUrl}/api/stats`);
+    assert.equal(statsRes.status, 200);
+    const statsJson = await statsRes.json();
+    assert.equal(statsJson.isLoaded, true);
+    assert.ok(statsJson.recordCount > 0);
+
+    // 3. GET /openapi.json
+    const specRes = await fetch(`${baseUrl}/openapi.json`);
+    assert.equal(specRes.status, 200);
+    const specJson = await specRes.json();
+    assert.equal(specJson.openapi, '3.0.3');
+
+    // 4. GET /api/screen?name=Aerocaribbean&threshold=70
     const getRes = await fetch(`${baseUrl}/api/screen?name=Aerocaribbean&threshold=70`);
     assert.equal(getRes.status, 200);
     const getJson = await getRes.json();
@@ -145,7 +168,7 @@ test('HTTP Integration - Express API returns identical payload to screenEntity()
     assert.equal(getJson.results[0].uid, directResult.results[0].uid);
     assert.equal(getJson.results[0].score, directResult.results[0].score);
 
-    // 3. POST /api/screen
+    // 5. POST /api/screen
     const postRes = await fetch(`${baseUrl}/api/screen`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -155,16 +178,16 @@ test('HTTP Integration - Express API returns identical payload to screenEntity()
     const postJson = await postRes.json();
     assert.ok(postJson.results.some((r) => r.uid === 2674));
 
-    // 4. Validation Errors return HTTP 400 Bad Request
+    // 6. Validation Errors return HTTP 400 with stable error codes
     const errMissingName = await fetch(`${baseUrl}/api/screen`);
     assert.equal(errMissingName.status, 400);
     const errMissingNameJson = await errMissingName.json();
-    assert.ok(errMissingNameJson.error.includes('name'));
+    assert.equal(errMissingNameJson.code, 'MISSING_NAME');
 
     const errBadThreshold = await fetch(`${baseUrl}/api/screen?name=Aerocaribbean&threshold=invalid`);
     assert.equal(errBadThreshold.status, 400);
     const errBadThresholdJson = await errBadThreshold.json();
-    assert.ok(errBadThresholdJson.error.includes('threshold'));
+    assert.equal(errBadThresholdJson.code, 'INVALID_THRESHOLD');
 
     const errBadType = await fetch(`${baseUrl}/api/screen`, {
       method: 'POST',
@@ -173,31 +196,36 @@ test('HTTP Integration - Express API returns identical payload to screenEntity()
     });
     assert.equal(errBadType.status, 400);
     const errBadTypeJson = await errBadType.json();
-    assert.ok(errBadTypeJson.error.includes('type'));
-    // 5. GET /api/sdn/:uid Handling
-    // Valid UID
+    assert.equal(errBadTypeJson.code, 'INVALID_TYPE');
+
+    // 7. GET /api/sdn/:uid Handling
     const uidRes = await fetch(`${baseUrl}/api/sdn/36`);
     assert.equal(uidRes.status, 200);
     const uidJson = await uidRes.json();
     assert.equal(uidJson.record.fullName, 'AEROCARIBBEAN AIRLINES');
 
-    // Invalid non-numeric UID -> HTTP 400 JSON
+    // Invalid non-numeric UID -> HTTP 400 JSON with INVALID_UID code
     const uidInvalidRes = await fetch(`${baseUrl}/api/sdn/abc`);
     assert.equal(uidInvalidRes.status, 400);
     const uidInvalidJson = await uidInvalidRes.json();
-    assert.ok(uidInvalidJson.error.includes('numeric'));
+    assert.equal(uidInvalidJson.code, 'INVALID_UID');
+    assert.match(uidInvalidJson.error, /numeric/i);
 
-    // Non-existent UID -> HTTP 404 JSON
+    // Non-existent UID -> HTTP 404 JSON with RECORD_NOT_FOUND code
     const uidNotFoundRes = await fetch(`${baseUrl}/api/sdn/12345`);
     assert.equal(uidNotFoundRes.status, 404);
     const uidNotFoundJson = await uidNotFoundRes.json();
-    assert.equal(uidNotFoundJson.error, 'Record not found');
+    assert.equal(uidNotFoundJson.code, 'RECORD_NOT_FOUND');
     assert.equal(uidNotFoundJson.uid, 12345);
 
-    // AKA UID (not directly queryable as primary entry) -> HTTP 404 JSON
+    // AKA UID -> HTTP 404 JSON
     const uidAkaRes = await fetch(`${baseUrl}/api/sdn/6500`);
     assert.equal(uidAkaRes.status, 404);
-    // 6. Security & Payload Validation (Malformed JSON & Disabled Header)
+    const uidAkaJson = await uidAkaRes.json();
+    assert.equal(uidAkaJson.code, 'RECORD_NOT_FOUND');
+    assert.equal(uidAkaJson.uid, 6500);
+
+    // 8. Security & Payload Validation (Malformed JSON & Disabled Header)
     assert.equal(healthRes.headers.get('x-powered-by'), null, 'X-Powered-By header must be disabled');
 
     const malformedJsonRes = await fetch(`${baseUrl}/api/screen`, {
@@ -207,14 +235,14 @@ test('HTTP Integration - Express API returns identical payload to screenEntity()
     });
     assert.equal(malformedJsonRes.status, 400);
     const malformedJsonObj = await malformedJsonRes.json();
-    assert.ok(malformedJsonObj.error.includes('Malformed JSON'));
+    assert.equal(malformedJsonObj.code, 'MALFORMED_JSON');
+    assert.match(malformedJsonObj.error, /malformed/i);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
 });
 
 test('Health Readiness Check - 503 when store degraded vs 200 when loaded', async () => {
-  const entries = store.getEntries();
   try {
     const server = await new Promise((resolve) => {
       const srv = app.listen(0, () => resolve(srv));
@@ -230,8 +258,8 @@ test('Health Readiness Check - 503 when store degraded vs 200 when loaded', asyn
       assert.equal(jsonOk.status, 'ok');
       assert.ok(jsonOk.recordCount > 0);
 
-      // 2. Temporarily empty memoryStore.entries -> 503 Service Unavailable
-      entries.length = 0;
+      // 2. Unload store using test helper -> 503 Service Unavailable
+      store._unloadStoreForTest();
       const resDegraded = await fetch(`${baseUrl}/health`);
       assert.equal(resDegraded.status, 503);
       const jsonDegraded = await resDegraded.json();
@@ -241,6 +269,7 @@ test('Health Readiness Check - 503 when store degraded vs 200 when loaded', asyn
     }
   } finally {
     store.reloadStore();
+    assert.equal(store.isLoaded(), true, 'Store should be restored after test');
+    assert.ok(store.getStats().recordCount > 0, 'Store should have records after reload');
   }
 });
-

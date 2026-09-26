@@ -53,7 +53,7 @@ export function isLoaded() {
 }
 
 export function getEntries() {
-  return memoryStore.entries;
+  return [...memoryStore.entries];
 }
 
 export function getEntryByUid(uid) {
@@ -80,6 +80,16 @@ export function reloadStore() {
   return loadStore();
 }
 
+/**
+ * Test helper to simulate an uninitialized / degraded store state.
+ */
+export function _unloadStoreForTest() {
+  memoryStore.entries = [];
+  memoryStore.indexedByUid.clear();
+  memoryStore.metadata = null;
+  memoryStore.loadedAt = null;
+}
+
 // Auto load on module import if file exists
 loadStore();
 
@@ -90,4 +100,5 @@ export default {
   getEntryByUid,
   getStats,
   reloadStore,
+  _unloadStoreForTest,
 };

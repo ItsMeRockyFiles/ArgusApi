@@ -117,6 +117,7 @@ const handleScreenRequest = (req, res) => {
       log.warn({ err, payload }, 'Screening validation error');
       return res.status(400).json({
         error: err.message,
+        code: err.code || 'VALIDATION_ERROR',
         details: err.details || undefined,
         example: '/api/screen?name=Aerocaribbean&threshold=70',
       });
@@ -135,12 +136,12 @@ app.post('/api/screen', handleScreenRequest);
 app.get('/api/sdn/:uid', (req, res) => {
   const uid = parseInt(req.params.uid, 10);
   if (Number.isNaN(uid)) {
-    return res.status(400).json({ error: 'Invalid UID parameter. Must be a numeric identifier.' });
+    return res.status(400).json({ error: 'Invalid UID parameter. Must be a numeric identifier.', code: 'INVALID_UID' });
   }
 
   const record = store.getEntryByUid(uid);
   if (!record) {
-    return res.status(404).json({ error: 'Record not found', uid });
+    return res.status(404).json({ error: 'Record not found', code: 'RECORD_NOT_FOUND', uid });
   }
 
   res.json({ record });
@@ -152,13 +153,14 @@ app.post('/api/rebuild', async (req, res) => {
   const authHeader = req.headers.authorization || req.headers['x-rebuild-secret'];
 
   if (!secret || (authHeader !== `Bearer ${secret}` && authHeader !== secret)) {
-    return res.status(401).json({ error: 'Unauthorized. Admin secret required for manual rebuilds.' });
+    return res.status(401).json({ error: 'Unauthorized. Admin secret required for manual rebuilds.', code: 'UNAUTHORIZED' });
   }
 
   if (process.env.VERCEL) {
     return res.status(501).json({
       error: 'Database rebuild endpoint disabled in serverless deployment.',
       message: 'Database rebuilds occur automatically during the Vercel deployment build pipeline.',
+      code: 'NOT_IMPLEMENTED',
     });
   }
 
@@ -175,7 +177,7 @@ app.post('/api/rebuild', async (req, res) => {
 
 // 404 Handler
 app.use((req, res) => {
-  res.status(404).json({ error: 'Endpoint not found' });
+  res.status(404).json({ error: 'Endpoint not found', code: 'NOT_FOUND' });
 });
 
 // Global Error Handler
@@ -183,18 +185,18 @@ app.use((err, req, res, next) => {
   if (err instanceof SyntaxError && (err.status === 400 || err.statusCode === 400) && 'body' in err) {
     const log = req.log || logger;
     log.warn({ err: err.message }, 'Malformed JSON request payload');
-    return res.status(400).json({ error: 'Malformed JSON payload in request body.' });
+    return res.status(400).json({ error: 'Malformed JSON payload in request body.', code: 'MALFORMED_JSON' });
   }
 
   if (err instanceof ValidationError || err.name === 'ValidationError') {
     const log = req.log || logger;
     log.warn({ err }, 'Validation error handled globally');
-    return res.status(400).json({ error: err.message });
+    return res.status(400).json({ error: err.message, code: err.code || 'VALIDATION_ERROR' });
   }
 
   const log = req.log || logger;
   log.error({ err }, 'Global server error');
-  res.status(500).json({ error: 'Internal server error', message: err.message });
+  res.status(500).json({ error: 'Internal server error', message: err.message, code: 'INTERNAL_ERROR' });
 });
 
 // Start Server if executed directly

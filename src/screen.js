@@ -99,26 +99,27 @@ export function screenEntity(options = {}) {
 
   const queryName = options.name ? String(options.name).trim() : '';
   if (!queryName) {
-    throw new ValidationError('Parameter "name" is required for screening.');
+    throw new ValidationError('Parameter "name" is required for screening.', 'MISSING_NAME');
   }
 
   const typeFilter = options.type ? String(options.type).trim() : 'all';
   if (!VALID_TYPES.has(typeFilter.toLowerCase())) {
     throw new ValidationError(
-      `Invalid "type" parameter: "${options.type}". Allowed values: Individual, Entity, Vessel, Aircraft, all.`
+      `Invalid "type" parameter: "${options.type}". Allowed values: Individual, Entity, Vessel, Aircraft, all.`,
+      'INVALID_TYPE'
     );
   }
 
   const thresholdRaw = options.threshold !== undefined ? options.threshold : 70;
   const threshold = Number(thresholdRaw);
   if (Number.isNaN(threshold) || threshold < 0 || threshold > 100) {
-    throw new ValidationError('Parameter "threshold" must be a number between 0 and 100.');
+    throw new ValidationError('Parameter "threshold" must be a number between 0 and 100.', 'INVALID_THRESHOLD');
   }
 
   const limitRaw = options.limit !== undefined ? options.limit : 20;
   const limitNum = Number(limitRaw);
   if (Number.isNaN(limitNum) || limitNum < 1) {
-    throw new ValidationError('Parameter "limit" must be a positive integer.');
+    throw new ValidationError('Parameter "limit" must be a positive integer.', 'INVALID_LIMIT');
   }
   const limit = Math.min(Math.floor(limitNum), 100);
 
