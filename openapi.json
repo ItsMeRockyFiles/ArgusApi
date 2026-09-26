@@ -10,19 +10,23 @@
   },
   "servers": [
     {
-      "url": "/",
-      "description": "Current Server"
+      "url": "https://argus-api-zeta.vercel.app",
+      "description": "Production (Vercel)"
+    },
+    {
+      "url": "http://localhost:3000",
+      "description": "Local Development"
     }
   ],
   "paths": {
     "/health": {
       "get": {
-        "summary": "Healthcheck Endpoint",
-        "description": "Returns operational status and SDN dataset load state.",
+        "summary": "Healthcheck & Readiness Endpoint",
+        "description": "Returns operational liveness status (200 OK) or store readiness failure (503 Service Unavailable).",
         "operationId": "getHealth",
         "responses": {
           "200": {
-            "description": "API is healthy and store is fully loaded.",
+            "description": "API is healthy and SDN database is fully loaded into memory.",
             "content": {
               "application/json": {
                 "schema": {
@@ -32,7 +36,7 @@
             }
           },
           "503": {
-            "description": "API is online but SDN database is not loaded yet.",
+            "description": "API is degraded because the SDN database is not loaded.",
             "content": {
               "application/json": {
                 "schema": {
@@ -47,7 +51,7 @@
     "/api/stats": {
       "get": {
         "summary": "Dataset Statistics",
-        "description": "Returns record counts, dataset metadata, and memory metrics.",
+        "description": "Returns comprehensive record counts, publication dates, source metadata, and memory metrics.",
         "operationId": "getStats",
         "responses": {
           "200": {
@@ -56,6 +60,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StatsResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -76,7 +90,7 @@
             "description": "Full or partial name to screen.",
             "schema": {
               "type": "string",
-              "example": "Aerocaribbean"
+              "example": "Viktor Bout"
             }
           },
           {
@@ -121,7 +135,7 @@
             "description": "Date of birth string to boost match confidence.",
             "schema": {
               "type": "string",
-              "example": "1970-01-01"
+              "example": "1967-01-13"
             }
           },
           {
@@ -131,7 +145,7 @@
             "description": "Country name or code filter/boost.",
             "schema": {
               "type": "string",
-              "example": "Cuba"
+              "example": "Russia"
             }
           },
           {
@@ -156,7 +170,17 @@
             }
           },
           "400": {
-            "description": "Invalid parameters supplied.",
+            "description": "Invalid parameter supplied or malformed query.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal screening execution error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -179,7 +203,7 @@
       },
       "post": {
         "summary": "Screen Entity (POST)",
-        "description": "Screen an individual or entity against the OFAC SDN database via JSON body.",
+        "description": "Screen an individual or entity against the OFAC SDN database via JSON body payload.",
         "operationId": "screenEntityPost",
         "requestBody": {
           "required": true,
@@ -203,7 +227,17 @@
             }
           },
           "400": {
-            "description": "Invalid parameters supplied.",
+            "description": "Validation error or malformed JSON body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal screening execution error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -228,27 +262,28 @@
     "/api/sdn/{uid}": {
       "get": {
         "summary": "Get SDN Record by UID",
-        "description": "Retrieve exact details for an SDN record using its unique numeric identifier.",
+        "description": "Retrieve full primary details for a specific SDN entry by numeric UID.",
         "operationId": "getSdnRecordByUid",
         "parameters": [
           {
             "name": "uid",
             "in": "path",
             "required": true,
-            "description": "Unique numeric identifier of the SDN entry.",
+            "description": "Unique numeric identifier of the primary SDN entry.",
             "schema": {
               "type": "integer",
-              "example": 36
+              "example": 8279
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Record found.",
+            "description": "SDN record found.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "required": ["record"],
                   "properties": {
                     "record": {
                       "$ref": "#/components/schemas/SdnRecord"
@@ -258,8 +293,28 @@
               }
             }
           },
+          "400": {
+            "description": "Invalid non-numeric UID parameter.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "404": {
-            "description": "Record not found.",
+            "description": "SDN record not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -276,9 +331,11 @@
     "schemas": {
       "HealthResponse": {
         "type": "object",
+        "required": ["status", "uptimeSeconds", "timestamp", "recordCount"],
         "properties": {
           "status": {
             "type": "string",
+            "enum": ["ok", "degraded"],
             "example": "ok"
           },
           "uptimeSeconds": {
@@ -289,16 +346,19 @@
             "type": "string",
             "format": "date-time"
           },
-          "store": {
-            "type": "object"
+          "recordCount": {
+            "type": "integer",
+            "example": 19391
           }
         }
       },
       "StatsResponse": {
         "type": "object",
+        "required": ["isLoaded", "loadedAt", "recordCount", "metadata", "memoryUsageMb"],
         "properties": {
           "isLoaded": {
-            "type": "boolean"
+            "type": "boolean",
+            "example": true
           },
           "loadedAt": {
             "type": "string",
@@ -309,10 +369,46 @@
             "example": 19391
           },
           "metadata": {
-            "type": "object"
+            "type": "object",
+            "properties": {
+              "publishDate": {
+                "type": "string",
+                "nullable": true
+              },
+              "recordCount": {
+                "type": "integer"
+              },
+              "totalAkas": {
+                "type": "integer"
+              },
+              "totalAddresses": {
+                "type": "integer"
+              },
+              "totalIds": {
+                "type": "integer"
+              },
+              "generatedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "sourceUrl": {
+                "type": "string"
+              }
+            }
           },
           "memoryUsageMb": {
-            "type": "object"
+            "type": "object",
+            "properties": {
+              "rss": {
+                "type": "string"
+              },
+              "heapTotal": {
+                "type": "string"
+              },
+              "heapUsed": {
+                "type": "string"
+              }
+            }
           }
         }
       },
@@ -323,7 +419,7 @@
           "name": {
             "type": "string",
             "description": "Full or partial name to screen.",
-            "example": "Muhammad Zaydan"
+            "example": "Viktor Bout"
           },
           "type": {
             "type": "string",
@@ -343,58 +439,127 @@
             "default": 20
           },
           "dob": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "country": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "idNumber": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ScreeningQuery": {
+        "type": "object",
+        "required": ["name", "type", "threshold", "limit"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Viktor Bout"
+          },
+          "type": {
+            "type": "string",
+            "example": "all"
+          },
+          "threshold": {
+            "type": "number",
+            "example": 70
+          },
+          "limit": {
+            "type": "integer",
+            "example": 20
+          },
+          "dob": {
+            "type": "string",
+            "nullable": true
+          },
+          "country": {
+            "type": "string",
+            "nullable": true
+          },
+          "idNumber": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "MatchedAlias": {
+        "type": "object",
+        "nullable": true,
+        "required": ["fullName", "type"],
+        "properties": {
+          "fullName": {
+            "type": "string",
+            "example": "AERO-CARIBBEAN"
+          },
+          "type": {
+            "type": "string",
+            "example": "a.k.a."
+          }
+        }
+      },
+      "SecondaryMatches": {
+        "type": "object",
+        "required": ["dobMatched", "countryMatched", "idMatched"],
+        "properties": {
+          "dobMatched": {
+            "type": "boolean",
+            "example": false
+          },
+          "countryMatched": {
+            "type": "boolean",
+            "example": false
+          },
+          "idMatched": {
+            "type": "boolean",
+            "example": false
           }
         }
       },
       "ScreeningMatch": {
         "type": "object",
+        "required": ["uid", "sdnName", "sdnType", "programs", "score", "matchedName", "matchType", "matchedAlias", "secondaryMatches", "record"],
         "properties": {
           "uid": {
-            "type": "integer"
+            "type": "integer",
+            "example": 8279
           },
           "sdnName": {
-            "type": "string"
+            "type": "string",
+            "example": "BOUT, Viktor Anatolyevich"
           },
           "sdnType": {
-            "type": "string"
+            "type": "string",
+            "example": "Individual"
           },
           "programs": {
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "example": ["SDGT", "ARMS-TRAFFICKING"]
           },
           "score": {
             "type": "number",
-            "example": 95.0
+            "example": 92.5
           },
           "matchedName": {
-            "type": "string"
+            "type": "string",
+            "example": "BOUT, Viktor Anatolyevich"
           },
           "matchType": {
             "type": "string",
-            "enum": ["primary", "aka"]
+            "enum": ["primary", "aka"],
+            "example": "primary"
+          },
+          "matchedAlias": {
+            "$ref": "#/components/schemas/MatchedAlias"
           },
           "secondaryMatches": {
-            "type": "object",
-            "properties": {
-              "dobMatched": {
-                "type": "boolean"
-              },
-              "countryMatched": {
-                "type": "boolean"
-              },
-              "idMatched": {
-                "type": "boolean"
-              }
-            }
+            "$ref": "#/components/schemas/SecondaryMatches"
           },
           "record": {
             "$ref": "#/components/schemas/SdnRecord"
@@ -403,18 +568,22 @@
       },
       "ScreeningResponse": {
         "type": "object",
+        "required": ["query", "totalMatches", "returnedMatches", "executionTimeMs", "results"],
         "properties": {
           "query": {
-            "type": "object"
+            "$ref": "#/components/schemas/ScreeningQuery"
           },
           "totalMatches": {
-            "type": "integer"
+            "type": "integer",
+            "example": 1
           },
           "returnedMatches": {
-            "type": "integer"
+            "type": "integer",
+            "example": 1
           },
           "executionTimeMs": {
-            "type": "number"
+            "type": "number",
+            "example": 12.4
           },
           "results": {
             "type": "array",
@@ -424,17 +593,136 @@
           }
         }
       },
-      "SdnRecord": {
+      "AkaEntry": {
         "type": "object",
         "properties": {
           "uid": {
-            "type": "integer"
+            "type": "integer",
+            "nullable": true
           },
-          "sdnType": {
-            "type": "string"
+          "type": {
+            "type": "string",
+            "example": "a.k.a."
+          },
+          "category": {
+            "type": "string",
+            "example": "strong"
+          },
+          "firstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "string",
+            "nullable": true
           },
           "fullName": {
             "type": "string"
+          },
+          "normalizedName": {
+            "type": "string"
+          }
+        }
+      },
+      "AddressEntry": {
+        "type": "object",
+        "properties": {
+          "uid": {
+            "type": "integer",
+            "nullable": true
+          },
+          "address1": {
+            "type": "string",
+            "nullable": true
+          },
+          "address2": {
+            "type": "string",
+            "nullable": true
+          },
+          "address3": {
+            "type": "string",
+            "nullable": true
+          },
+          "city": {
+            "type": "string",
+            "nullable": true
+          },
+          "stateOrProvince": {
+            "type": "string",
+            "nullable": true
+          },
+          "postalCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "country": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "IdEntry": {
+        "type": "object",
+        "properties": {
+          "uid": {
+            "type": "integer",
+            "nullable": true
+          },
+          "idType": {
+            "type": "string",
+            "nullable": true
+          },
+          "idNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "idCountry": {
+            "type": "string",
+            "nullable": true
+          },
+          "issueDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "expirationDate": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "SdnRecord": {
+        "type": "object",
+        "required": ["uid", "sdnType", "fullName", "normalizedName", "programs", "akas", "addresses", "ids", "dobs", "pobs"],
+        "properties": {
+          "uid": {
+            "type": "integer",
+            "example": 8279
+          },
+          "sdnType": {
+            "type": "string",
+            "example": "Individual"
+          },
+          "firstName": {
+            "type": "string",
+            "nullable": true,
+            "example": "Viktor"
+          },
+          "lastName": {
+            "type": "string",
+            "nullable": true,
+            "example": "BOUT"
+          },
+          "fullName": {
+            "type": "string",
+            "example": "BOUT, Viktor Anatolyevich"
+          },
+          "normalizedName": {
+            "type": "string",
+            "example": "BOUT VIKTOR ANATOLYEVICH"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
           },
           "programs": {
             "type": "array",
@@ -445,34 +733,63 @@
           "akas": {
             "type": "array",
             "items": {
-              "type": "object"
+              "$ref": "#/components/schemas/AkaEntry"
             }
           },
           "addresses": {
             "type": "array",
             "items": {
-              "type": "object"
+              "$ref": "#/components/schemas/AddressEntry"
             }
           },
           "ids": {
             "type": "array",
             "items": {
-              "type": "object"
+              "$ref": "#/components/schemas/IdEntry"
             }
+          },
+          "dobs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "pobs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "remarks": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
       "ErrorResponse": {
         "type": "object",
+        "required": ["error"],
         "properties": {
           "error": {
-            "type": "string"
+            "type": "string",
+            "example": "Record not found"
+          },
+          "uid": {
+            "type": "integer",
+            "example": 12345,
+            "description": "Returned when UID is not found."
           },
           "details": {
-            "type": "object"
+            "type": "object",
+            "description": "Optional validation error details."
           },
           "example": {
-            "type": "string"
+            "type": "string",
+            "example": "/api/screen?name=Aerocaribbean&threshold=70"
+          },
+          "message": {
+            "type": "string",
+            "description": "Detailed error message string if available."
           }
         }
       }

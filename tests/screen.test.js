@@ -197,7 +197,6 @@ test('HTTP Integration - Express API returns identical payload to screenEntity()
     // AKA UID (not directly queryable as primary entry) -> HTTP 404 JSON
     const uidAkaRes = await fetch(`${baseUrl}/api/sdn/6500`);
     assert.equal(uidAkaRes.status, 404);
-    const uidAkaJson = await uidAkaRes.json();
     // 6. Security & Payload Validation (Malformed JSON & Disabled Header)
     assert.equal(healthRes.headers.get('x-powered-by'), null, 'X-Powered-By header must be disabled');
 
@@ -211,6 +210,37 @@ test('HTTP Integration - Express API returns identical payload to screenEntity()
     assert.ok(malformedJsonObj.error.includes('Malformed JSON'));
   } finally {
     await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test('Health Readiness Check - 503 when store degraded vs 200 when loaded', async () => {
+  const entries = store.getEntries();
+  try {
+    const server = await new Promise((resolve) => {
+      const srv = app.listen(0, () => resolve(srv));
+    });
+    const port = server.address().port;
+    const baseUrl = `http://127.0.0.1:${port}`;
+
+    try {
+      // 1. Normal loaded state -> 200 OK
+      const resOk = await fetch(`${baseUrl}/health`);
+      assert.equal(resOk.status, 200);
+      const jsonOk = await resOk.json();
+      assert.equal(jsonOk.status, 'ok');
+      assert.ok(jsonOk.recordCount > 0);
+
+      // 2. Temporarily empty memoryStore.entries -> 503 Service Unavailable
+      entries.length = 0;
+      const resDegraded = await fetch(`${baseUrl}/health`);
+      assert.equal(resDegraded.status, 503);
+      const jsonDegraded = await resDegraded.json();
+      assert.equal(jsonDegraded.status, 'degraded');
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  } finally {
+    store.reloadStore();
   }
 });
 
