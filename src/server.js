@@ -36,6 +36,24 @@ app.use((req, res, next) => {
   next();
 });
 
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const OPENAPI_FILE = path.join(__dirname, '..', 'openapi.json');
+
+// OpenAPI Spec Endpoint
+app.get('/openapi.json', (req, res) => {
+  if (fs.existsSync(OPENAPI_FILE)) {
+    res.setHeader('Content-Type', 'application/json');
+    res.sendFile(OPENAPI_FILE);
+  } else {
+    res.status(404).json({ error: 'OpenAPI specification file not found' });
+  }
+});
+
 // Root / Welcome Endpoint
 app.get('/', (req, res) => {
   res.json({
@@ -43,11 +61,11 @@ app.get('/', (req, res) => {
     status: 'online',
     version: '1.0.0',
     documentation: {
+      openapi: '/openapi.json',
       healthcheck: '/health',
       screen: '/api/screen (POST or GET)',
       getRecord: '/api/sdn/:uid',
       stats: '/api/stats',
-      rebuild: '/api/rebuild (POST)',
     },
     dataset: store.getStats(),
   });
@@ -128,6 +146,13 @@ app.get('/api/sdn/:uid', (req, res) => {
 
 // Trigger Rebuild Endpoint
 app.post('/api/rebuild', async (req, res) => {
+  if (process.env.VERCEL) {
+    return res.status(501).json({
+      error: 'Database rebuild endpoint disabled in serverless deployment.',
+      message: 'Database rebuilds occur automatically during the Vercel deployment build pipeline.',
+    });
+  }
+
   try {
     res.json({ message: 'Database rebuild initiated in background.' });
     logger.info('Rebuild initiated via API request...');
@@ -156,8 +181,6 @@ app.use((err, req, res, next) => {
   log.error({ err }, 'Global server error');
   res.status(500).json({ error: 'Internal server error', message: err.message });
 });
-
-import { fileURLToPath } from 'node:url';
 
 // Start Server if executed directly
 if (process.env.NODE_ENV !== 'test' && process.argv[1] === fileURLToPath(import.meta.url)) {

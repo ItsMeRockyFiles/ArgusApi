@@ -1,0 +1,481 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Argus OFAC SDN Screening API",
+    "description": "High-performance, low-latency OFAC Specially Designated Nationals (SDN) fuzzy search and compliance screening API.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Argus API Support"
+    }
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Current Server"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Healthcheck Endpoint",
+        "description": "Returns operational status and SDN dataset load state.",
+        "operationId": "getHealth",
+        "responses": {
+          "200": {
+            "description": "API is healthy and store is fully loaded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "API is online but SDN database is not loaded yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/stats": {
+      "get": {
+        "summary": "Dataset Statistics",
+        "description": "Returns record counts, dataset metadata, and memory metrics.",
+        "operationId": "getStats",
+        "responses": {
+          "200": {
+            "description": "Dataset stats retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/screen": {
+      "get": {
+        "summary": "Screen Entity (GET)",
+        "description": "Screen an individual or entity against the OFAC SDN database via query parameters.",
+        "operationId": "screenEntityGet",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "required": true,
+            "description": "Full or partial name to screen.",
+            "schema": {
+              "type": "string",
+              "example": "Aerocaribbean"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "description": "Filter by entity category.",
+            "schema": {
+              "type": "string",
+              "enum": ["Individual", "Entity", "Vessel", "Aircraft", "all"],
+              "default": "all"
+            }
+          },
+          {
+            "name": "threshold",
+            "in": "query",
+            "required": false,
+            "description": "Minimum match similarity score (0 to 100).",
+            "schema": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "default": 70
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum records to return.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "dob",
+            "in": "query",
+            "required": false,
+            "description": "Date of birth string to boost match confidence.",
+            "schema": {
+              "type": "string",
+              "example": "1970-01-01"
+            }
+          },
+          {
+            "name": "country",
+            "in": "query",
+            "required": false,
+            "description": "Country name or code filter/boost.",
+            "schema": {
+              "type": "string",
+              "example": "Cuba"
+            }
+          },
+          {
+            "name": "idNumber",
+            "in": "query",
+            "required": false,
+            "description": "ID or passport number for exact identification boost.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Screening completed successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScreeningResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid parameters supplied.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SDN database not loaded yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Screen Entity (POST)",
+        "description": "Screen an individual or entity against the OFAC SDN database via JSON body.",
+        "operationId": "screenEntityPost",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScreeningRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Screening completed successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScreeningResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid parameters supplied.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SDN database not loaded yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sdn/{uid}": {
+      "get": {
+        "summary": "Get SDN Record by UID",
+        "description": "Retrieve exact details for an SDN record using its unique numeric identifier.",
+        "operationId": "getSdnRecordByUid",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "description": "Unique numeric identifier of the SDN entry.",
+            "schema": {
+              "type": "integer",
+              "example": 36
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Record found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "record": {
+                      "$ref": "#/components/schemas/SdnRecord"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Record not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "ok"
+          },
+          "uptimeSeconds": {
+            "type": "number",
+            "example": 142.5
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "store": {
+            "type": "object"
+          }
+        }
+      },
+      "StatsResponse": {
+        "type": "object",
+        "properties": {
+          "isLoaded": {
+            "type": "boolean"
+          },
+          "loadedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "recordCount": {
+            "type": "integer",
+            "example": 19391
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "memoryUsageMb": {
+            "type": "object"
+          }
+        }
+      },
+      "ScreeningRequest": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Full or partial name to screen.",
+            "example": "Muhammad Zaydan"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["Individual", "Entity", "Vessel", "Aircraft", "all"],
+            "default": "all"
+          },
+          "threshold": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100,
+            "default": 70
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 20
+          },
+          "dob": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          },
+          "idNumber": {
+            "type": "string"
+          }
+        }
+      },
+      "ScreeningMatch": {
+        "type": "object",
+        "properties": {
+          "uid": {
+            "type": "integer"
+          },
+          "sdnName": {
+            "type": "string"
+          },
+          "sdnType": {
+            "type": "string"
+          },
+          "programs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "score": {
+            "type": "number",
+            "example": 95.0
+          },
+          "matchedName": {
+            "type": "string"
+          },
+          "matchType": {
+            "type": "string",
+            "enum": ["primary", "aka"]
+          },
+          "secondaryMatches": {
+            "type": "object",
+            "properties": {
+              "dobMatched": {
+                "type": "boolean"
+              },
+              "countryMatched": {
+                "type": "boolean"
+              },
+              "idMatched": {
+                "type": "boolean"
+              }
+            }
+          },
+          "record": {
+            "$ref": "#/components/schemas/SdnRecord"
+          }
+        }
+      },
+      "ScreeningResponse": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "object"
+          },
+          "totalMatches": {
+            "type": "integer"
+          },
+          "returnedMatches": {
+            "type": "integer"
+          },
+          "executionTimeMs": {
+            "type": "number"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScreeningMatch"
+            }
+          }
+        }
+      },
+      "SdnRecord": {
+        "type": "object",
+        "properties": {
+          "uid": {
+            "type": "integer"
+          },
+          "sdnType": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "programs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "akas": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "addresses": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "details": {
+            "type": "object"
+          },
+          "example": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
