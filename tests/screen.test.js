@@ -62,10 +62,20 @@ test('Screen Entity - Type Filtering', () => {
   assert.equal(resIndiv.results.length, 0, 'No individual should match Aerocaribbean');
 });
 
-test('Get Entry By UID', () => {
-  const record = store.getEntryByUid(36);
-  assert.ok(record, 'Record UID 36 should exist');
-  assert.equal(record.fullName, 'AEROCARIBBEAN AIRLINES');
+test('Get Entry By UID - verifies addresses and ids array structures', () => {
+  const record36 = store.getEntryByUid(36);
+  assert.ok(record36, 'Record UID 36 should exist');
+  assert.equal(record36.fullName, 'AEROCARIBBEAN AIRLINES');
+
+  assert.ok(Array.isArray(record36.addresses), 'Record addresses should be an array');
+  assert.ok(record36.addresses.length > 0, 'Aerocaribbean should have populated addresses');
+  assert.equal(typeof record36.addresses[0].city, 'string');
+  assert.equal(typeof record36.addresses[0].country, 'string');
+
+  const recordWithId = store.getEntries().find((e) => e.ids && e.ids.length > 0);
+  assert.ok(recordWithId, 'Should find an entry with populated ids');
+  assert.ok(Array.isArray(recordWithId.ids), 'Record ids should be an array');
+  assert.equal(typeof recordWithId.ids[0].idType, 'string');
 });
 
 test('False Positive Guard - Common non-sanctioned name returns 0 matches', () => {

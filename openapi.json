@@ -529,7 +529,7 @@
           },
           "sdnName": {
             "type": "string",
-            "example": "BOUT, Viktor Anatolyevich"
+            "example": "Viktor Anatolijevitch BOUT"
           },
           "sdnType": {
             "type": "string",
@@ -540,15 +540,15 @@
             "items": {
               "type": "string"
             },
-            "example": ["SDGT", "ARMS-TRAFFICKING"]
+            "example": ["DRCONGO"]
           },
           "score": {
             "type": "number",
-            "example": 92.5
+            "example": 100.0
           },
           "matchedName": {
             "type": "string",
-            "example": "BOUT, Viktor Anatolyevich"
+            "example": "Viktor Anatolijevitch BOUT"
           },
           "matchType": {
             "type": "string",
@@ -598,7 +598,8 @@
         "properties": {
           "uid": {
             "type": "integer",
-            "nullable": true
+            "nullable": true,
+            "example": 8280
           },
           "type": {
             "type": "string",
@@ -610,17 +611,21 @@
           },
           "firstName": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "example": "Viktor"
           },
           "lastName": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "example": "BUT"
           },
           "fullName": {
-            "type": "string"
+            "type": "string",
+            "example": "Viktor BUT"
           },
           "normalizedName": {
-            "type": "string"
+            "type": "string",
+            "example": "VIKTOR BUT"
           }
         }
       },
@@ -629,35 +634,43 @@
         "properties": {
           "uid": {
             "type": "integer",
-            "nullable": true
+            "nullable": true,
+            "example": 25
           },
           "address1": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "example": "Building 7, Calle 23"
           },
           "address2": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "example": null
           },
           "address3": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "example": null
           },
           "city": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "example": "Havana"
           },
           "stateOrProvince": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "example": null
           },
           "postalCode": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "example": null
           },
           "country": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "example": "Cuba"
           }
         }
       },
@@ -666,27 +679,33 @@
         "properties": {
           "uid": {
             "type": "integer",
-            "nullable": true
+            "nullable": true,
+            "example": 26
           },
           "idType": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "example": "Tax ID No."
           },
           "idNumber": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "example": "CU12345678"
           },
           "idCountry": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "example": "Cuba"
           },
           "issueDate": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "example": null
           },
           "expirationDate": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "example": null
           }
         }
       },
@@ -705,7 +724,7 @@
           "firstName": {
             "type": "string",
             "nullable": true,
-            "example": "Viktor"
+            "example": "Viktor Anatolijevitch"
           },
           "lastName": {
             "type": "string",
@@ -714,11 +733,11 @@
           },
           "fullName": {
             "type": "string",
-            "example": "BOUT, Viktor Anatolyevich"
+            "example": "Viktor Anatolijevitch BOUT"
           },
           "normalizedName": {
             "type": "string",
-            "example": "BOUT VIKTOR ANATOLYEVICH"
+            "example": "VIKTOR ANATOLIJEVITCH BOUT"
           },
           "title": {
             "type": "string",
@@ -728,7 +747,8 @@
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "example": ["DRCONGO"]
           },
           "akas": {
             "type": "array",
@@ -752,17 +772,20 @@
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "example": ["13 Jan 1967"]
           },
           "pobs": {
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "example": ["Dushanbe, Tajikistan"]
           },
           "remarks": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "example": "Relating to arms trafficking."
           }
         }
       },
