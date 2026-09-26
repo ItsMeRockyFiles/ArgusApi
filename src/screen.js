@@ -1,6 +1,7 @@
 import { distance } from 'fastest-levenshtein';
 import store from './store.js';
 import { normalizeString } from '../scripts/build-sdn.js';
+import { ValidationError } from './errors.js';
 
 /**
  * Calculates normalized Levenshtein similarity between two strings (0.0 to 1.0)
@@ -78,6 +79,8 @@ function computeNameScore(normQuery, normTarget) {
   return baseScore;
 }
 
+const VALID_TYPES = new Set(['individual', 'entity', 'vessel', 'aircraft', 'all']);
+
 /**
  * Pure screening function to search SDN database for matching names/entities
  *
@@ -96,15 +99,28 @@ export function screenEntity(options = {}) {
 
   const queryName = options.name ? String(options.name).trim() : '';
   if (!queryName) {
-    return {
-      error: 'Parameter "name" is required for screening.',
-      results: [],
-    };
+    throw new ValidationError('Parameter "name" is required for screening.');
   }
 
   const typeFilter = options.type ? String(options.type).trim() : 'all';
-  const threshold = options.threshold !== undefined ? Number(options.threshold) : 70;
-  const limit = options.limit ? Math.min(Number(options.limit), 100) : 20;
+  if (!VALID_TYPES.has(typeFilter.toLowerCase())) {
+    throw new ValidationError(
+      `Invalid "type" parameter: "${options.type}". Allowed values: Individual, Entity, Vessel, Aircraft, all.`
+    );
+  }
+
+  const thresholdRaw = options.threshold !== undefined ? options.threshold : 70;
+  const threshold = Number(thresholdRaw);
+  if (Number.isNaN(threshold) || threshold < 0 || threshold > 100) {
+    throw new ValidationError('Parameter "threshold" must be a number between 0 and 100.');
+  }
+
+  const limitRaw = options.limit !== undefined ? options.limit : 20;
+  const limitNum = Number(limitRaw);
+  if (Number.isNaN(limitNum) || limitNum < 1) {
+    throw new ValidationError('Parameter "limit" must be a positive integer.');
+  }
+  const limit = Math.min(Math.floor(limitNum), 100);
 
   const queryDob = options.dob ? normalizeString(options.dob) : null;
   const queryCountry = options.country ? normalizeString(options.country) : null;

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import store from '../src/store.js';
 import { screenEntity } from '../src/screen.js';
 import app from '../src/server.js';
+import { ValidationError } from '../src/errors.js';
 
 test('SDN Store loading', () => {
   assert.equal(store.isLoaded(), true, 'Store should be loaded');
@@ -90,6 +91,36 @@ test('Threshold Boundaries - behavior at 100, 70, and 0', () => {
   assert.ok(res0.results[res0.results.length - 1].score < 70, 'Lowest result should be sub-threshold when threshold=0');
 });
 
+test('Input Validation - screenEntity throws ValidationError for invalid inputs', () => {
+  // Missing name
+  assert.throws(
+    () => screenEntity({}),
+    (err) => err instanceof ValidationError && err.message.includes('name')
+  );
+
+  // Invalid threshold (NaN, negative, >100)
+  assert.throws(
+    () => screenEntity({ name: 'Test', threshold: 'invalid' }),
+    (err) => err instanceof ValidationError && err.message.includes('threshold')
+  );
+  assert.throws(
+    () => screenEntity({ name: 'Test', threshold: 150 }),
+    (err) => err instanceof ValidationError && err.message.includes('threshold')
+  );
+
+  // Invalid type filter
+  assert.throws(
+    () => screenEntity({ name: 'Test', type: 'SuperHero' }),
+    (err) => err instanceof ValidationError && err.message.includes('type')
+  );
+
+  // Invalid limit
+  assert.throws(
+    () => screenEntity({ name: 'Test', limit: -5 }),
+    (err) => err instanceof ValidationError && err.message.includes('limit')
+  );
+});
+
 test('HTTP Integration - Express API returns identical payload to screenEntity()', async () => {
   // Start server on dynamic port
   const server = await new Promise((resolve) => {
@@ -123,7 +154,28 @@ test('HTTP Integration - Express API returns identical payload to screenEntity()
     assert.equal(postRes.status, 200);
     const postJson = await postRes.json();
     assert.ok(postJson.results.some((r) => r.uid === 2674));
+
+    // 4. Validation Errors return HTTP 400 Bad Request
+    const errMissingName = await fetch(`${baseUrl}/api/screen`);
+    assert.equal(errMissingName.status, 400);
+    const errMissingNameJson = await errMissingName.json();
+    assert.ok(errMissingNameJson.error.includes('name'));
+
+    const errBadThreshold = await fetch(`${baseUrl}/api/screen?name=Aerocaribbean&threshold=invalid`);
+    assert.equal(errBadThreshold.status, 400);
+    const errBadThresholdJson = await errBadThreshold.json();
+    assert.ok(errBadThresholdJson.error.includes('threshold'));
+
+    const errBadType = await fetch(`${baseUrl}/api/screen`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Aerocaribbean', type: 'InvalidType' }),
+    });
+    assert.equal(errBadType.status, 400);
+    const errBadTypeJson = await errBadType.json();
+    assert.ok(errBadTypeJson.error.includes('type'));
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
 });
+

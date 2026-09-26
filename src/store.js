@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import logger from './logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,11 +16,11 @@ let memoryStore = {
 };
 
 export function loadStore() {
-  console.log(`[store] Loading SDN data from ${DATA_FILE}...`);
+  logger.info({ dataFile: DATA_FILE }, '[store] Loading SDN data...');
   const startTime = Date.now();
 
   if (!fs.existsSync(DATA_FILE)) {
-    console.warn(`[store] WARNING: data/sdn.json not found! Please run 'npm run build:sdn' to generate it.`);
+    logger.warn({ dataFile: DATA_FILE }, '[store] WARNING: sdn.json not found! Please run npm run build:sdn.');
     return false;
   }
 
@@ -39,10 +40,10 @@ export function loadStore() {
 
     memoryStore.loadedAt = new Date().toISOString();
     const duration = Date.now() - startTime;
-    console.log(`[store] Loaded ${memoryStore.entries.length} SDN records into memory in ${duration} ms.`);
+    logger.info({ count: memoryStore.entries.length, durationMs: duration }, '[store] Loaded SDN records into memory');
     return true;
   } catch (err) {
-    console.error(`[store] Error reading/parsing sdn.json:`, err);
+    logger.error({ err }, '[store] Error reading/parsing sdn.json');
     return false;
   }
 }

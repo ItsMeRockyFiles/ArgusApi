@@ -1,13 +1,28 @@
 import express from 'express';
 import dotenv from 'dotenv';
+import pinoHttp from 'pino-http';
 import store from './store.js';
 import { screenEntity } from './screen.js';
 import { buildSdnDatabase } from '../scripts/build-sdn.js';
+import logger from './logger.js';
+import { ValidationError } from './errors.js';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Structured HTTP Request logger middleware (pino-http)
+app.use(
+  pinoHttp({
+    logger,
+    customLogLevel: function (req, res, err) {
+      if (res.statusCode >= 500 || err) return 'error';
+      if (res.statusCode >= 400) return 'warn';
+      return 'info';
+    },
+  })
+);
 
 // JSON Middleware & CORS
 app.use(express.json());
@@ -18,16 +33,6 @@ app.use((req, res, next) => {
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
-  next();
-});
-
-// Request logger middleware
-app.use((req, res, next) => {
-  const start = Date.now();
-  res.on('finish', () => {
-    const duration = Date.now() - start;
-    console.log(`[HTTP] ${req.method} ${req.originalUrl} ${res.statusCode} - ${duration}ms`);
-  });
   next();
 });
 
@@ -84,18 +89,22 @@ const handleScreenRequest = (req, res) => {
     idNumber: req.body?.idNumber || req.query?.idNumber,
   };
 
-  if (!payload.name) {
-    return res.status(400).json({
-      error: 'Missing required parameter: "name".',
-      example: '/api/screen?name=Aerocaribbean&threshold=70',
-    });
-  }
-
   try {
     const screeningResult = screenEntity(payload);
     res.json(screeningResult);
   } catch (err) {
-    console.error('[server] Error performing screening:', err);
+    if (err instanceof ValidationError || err.name === 'ValidationError') {
+      const log = req.log || logger;
+      log.warn({ err, payload }, 'Screening validation error');
+      return res.status(400).json({
+        error: err.message,
+        details: err.details || undefined,
+        example: '/api/screen?name=Aerocaribbean&threshold=70',
+      });
+    }
+
+    const log = req.log || logger;
+    log.error({ err, payload }, 'Internal screening error');
     res.status(500).json({ error: 'Internal screening error', message: err.message });
   }
 };
@@ -121,12 +130,12 @@ app.get('/api/sdn/:uid', (req, res) => {
 app.post('/api/rebuild', async (req, res) => {
   try {
     res.json({ message: 'Database rebuild initiated in background.' });
-    console.log('[server] Rebuild initiated via API request...');
+    logger.info('Rebuild initiated via API request...');
     await buildSdnDatabase();
     store.reloadStore();
-    console.log('[server] Rebuild and reload complete!');
+    logger.info('Rebuild and reload complete!');
   } catch (err) {
-    console.error('[server] Error during API rebuild:', err);
+    logger.error({ err }, 'Error during API rebuild');
   }
 });
 
@@ -137,7 +146,14 @@ app.use((req, res) => {
 
 // Global Error Handler
 app.use((err, req, res, next) => {
-  console.error('[server] Global error:', err);
+  if (err instanceof ValidationError || err.name === 'ValidationError') {
+    const log = req.log || logger;
+    log.warn({ err }, 'Validation error handled globally');
+    return res.status(400).json({ error: err.message });
+  }
+
+  const log = req.log || logger;
+  log.error({ err }, 'Global server error');
   res.status(500).json({ error: 'Internal server error', message: err.message });
 });
 
@@ -146,11 +162,7 @@ import { fileURLToPath } from 'node:url';
 // Start Server if executed directly
 if (process.env.NODE_ENV !== 'test' && process.argv[1] === fileURLToPath(import.meta.url)) {
   app.listen(PORT, () => {
-    console.log(`====================================================`);
-    console.log(`🚀 Argus OFAC SDN Screening API running on port ${PORT}`);
-    console.log(`📍 Endpoint: http://localhost:${PORT}/api/screen`);
-    console.log(`🏥 Healthcheck: http://localhost:${PORT}/health`);
-    console.log(`====================================================`);
+    logger.info({ port: PORT, endpoint: `http://localhost:${PORT}/api/screen`, healthcheck: `http://localhost:${PORT}/health` }, `Argus OFAC SDN Screening API running on port ${PORT}`);
   });
 }
 

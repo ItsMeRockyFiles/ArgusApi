@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { XMLParser } from 'fast-xml-parser';
 import dotenv from 'dotenv';
+import logger from '../src/logger.js';
 
 dotenv.config();
 
@@ -30,8 +31,7 @@ export function normalizeString(str) {
 }
 
 export async function buildSdnDatabase() {
-  console.log(`[build-sdn] Starting OFAC SDN database build...`);
-  console.log(`[build-sdn] Fetching XML from ${SDN_XML_URL}`);
+  logger.info({ sdnXmlUrl: SDN_XML_URL }, '[build-sdn] Starting OFAC SDN database build...');
   const startTime = Date.now();
 
   let xmlText;
@@ -42,12 +42,11 @@ export async function buildSdnDatabase() {
     }
     xmlText = await response.text();
   } catch (err) {
-    console.error(`[build-sdn] Error fetching OFAC XML: ${err.message}`);
+    logger.error({ err: err.message }, '[build-sdn] Error fetching OFAC XML');
     throw err;
   }
 
-  console.log(`[build-sdn] Downloaded ${(xmlText.length / (1024 * 1024)).toFixed(2)} MB XML data.`);
-  console.log(`[build-sdn] Parsing XML...`);
+  logger.info({ sizeMb: (xmlText.length / (1024 * 1024)).toFixed(2) }, '[build-sdn] Downloaded XML data. Parsing XML...');
 
   const parser = new XMLParser({
     ignoreAttributes: false,
@@ -61,7 +60,7 @@ export async function buildSdnDatabase() {
   const rawEntries = toArray(sdnList.sdnEntry);
   const publishInfo = sdnList.publshInformation || {};
 
-  console.log(`[build-sdn] Found ${rawEntries.length} raw SDN entries.`);
+  logger.info({ rawCount: rawEntries.length }, '[build-sdn] Parsed raw SDN entries.');
 
   let totalAkas = 0;
   let totalAddresses = 0;
@@ -194,13 +193,18 @@ export async function buildSdnDatabase() {
   const stats = fs.statSync(OUTPUT_FILE);
   const durationMs = Date.now() - startTime;
 
-  console.log(`[build-sdn] Built SDN database successfully!`);
-  console.log(`  - Total Entries: ${entries.length}`);
-  console.log(`  - Total AKAs: ${totalAkas}`);
-  console.log(`  - Total Addresses: ${totalAddresses}`);
-  console.log(`  - Total IDs: ${totalIds}`);
-  console.log(`  - Output File: ${OUTPUT_FILE} (${(stats.size / (1024 * 1024)).toFixed(2)} MB)`);
-  console.log(`  - Elapsed Time: ${durationMs} ms`);
+  logger.info(
+    {
+      entries: entries.length,
+      totalAkas,
+      totalAddresses,
+      totalIds,
+      outputFile: OUTPUT_FILE,
+      sizeMb: (stats.size / (1024 * 1024)).toFixed(2),
+      durationMs,
+    },
+    '[build-sdn] Built SDN database successfully!'
+  );
 
   return dataset.metadata;
 }
@@ -208,7 +212,7 @@ export async function buildSdnDatabase() {
 // Execute directly if script is run via CLI
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   buildSdnDatabase().catch((err) => {
-    console.error('[build-sdn] Build failed:', err);
+    logger.error({ err }, '[build-sdn] Build failed');
     process.exit(1);
   });
 }
