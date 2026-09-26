@@ -768,32 +768,50 @@
       },
       "ErrorResponse": {
         "type": "object",
-        "required": ["error"],
+        "required": ["error", "code"],
         "properties": {
-          "error": {
-            "type": "string",
-            "example": "Record not found"
-          },
           "code": {
             "type": "string",
-            "example": "RECORD_NOT_FOUND",
-            "description": "Machine-readable error code."
+            "description": "Stable machine-readable error identifier.",
+            "enum": [
+              "INVALID_UID",
+              "MALFORMED_JSON",
+              "MISSING_NAME",
+              "INVALID_THRESHOLD",
+              "INVALID_TYPE",
+              "INVALID_LIMIT",
+              "RECORD_NOT_FOUND",
+              "NOT_FOUND",
+              "UNAUTHORIZED",
+              "NOT_IMPLEMENTED",
+              "VALIDATION_ERROR",
+              "INTERNAL_ERROR"
+            ],
+            "example": "INVALID_UID"
+          },
+          "error": {
+            "type": "string",
+            "example": "Invalid UID parameter. Must be a numeric identifier."
           },
           "uid": {
             "type": "integer",
+            "nullable": true,
             "example": 12345,
-            "description": "Returned when UID is not found."
+            "description": "Returned when UID is requested."
           },
           "details": {
             "type": "object",
+            "nullable": true,
             "description": "Optional validation error details."
           },
           "example": {
             "type": "string",
+            "nullable": true,
             "example": "/api/screen?name=Aerocaribbean&threshold=70"
           },
           "message": {
             "type": "string",
+            "nullable": true,
             "description": "Detailed error message string if available."
           }
         }
