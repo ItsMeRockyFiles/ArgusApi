@@ -1,0 +1,27 @@
+{
+  "name": "argus-api",
+  "version": "1.0.0",
+  "description": "High-performance OFAC SDN Screening API",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon --ignore data/ src/server.js",
+    "build:sdn": "node scripts/build-sdn.js",
+    "test": "node --test tests/*.test.js"
+  },
+  "nodemonConfig": {
+    "ignore": [
+      "data/*"
+    ]
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "fast-xml-parser": "^4.5.3",
+    "fastest-levenshtein": "^1.0.16"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9"
+  }
+}
