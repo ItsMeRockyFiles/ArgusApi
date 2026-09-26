@@ -174,6 +174,32 @@ test('HTTP Integration - Express API returns identical payload to screenEntity()
     assert.equal(errBadType.status, 400);
     const errBadTypeJson = await errBadType.json();
     assert.ok(errBadTypeJson.error.includes('type'));
+    // 5. GET /api/sdn/:uid Handling
+    // Valid UID
+    const uidRes = await fetch(`${baseUrl}/api/sdn/36`);
+    assert.equal(uidRes.status, 200);
+    const uidJson = await uidRes.json();
+    assert.equal(uidJson.record.fullName, 'AEROCARIBBEAN AIRLINES');
+
+    // Invalid non-numeric UID -> HTTP 400 JSON
+    const uidInvalidRes = await fetch(`${baseUrl}/api/sdn/abc`);
+    assert.equal(uidInvalidRes.status, 400);
+    const uidInvalidJson = await uidInvalidRes.json();
+    assert.ok(uidInvalidJson.error.includes('numeric'));
+
+    // Non-existent UID -> HTTP 404 JSON
+    const uidNotFoundRes = await fetch(`${baseUrl}/api/sdn/12345`);
+    assert.equal(uidNotFoundRes.status, 404);
+    const uidNotFoundJson = await uidNotFoundRes.json();
+    assert.equal(uidNotFoundJson.error, 'Record not found');
+    assert.equal(uidNotFoundJson.uid, 12345);
+
+    // AKA UID (not directly queryable as primary entry) -> HTTP 404 JSON
+    const uidAkaRes = await fetch(`${baseUrl}/api/sdn/6500`);
+    assert.equal(uidAkaRes.status, 404);
+    const uidAkaJson = await uidAkaRes.json();
+    assert.equal(uidAkaJson.error, 'Record not found');
+    assert.equal(uidAkaJson.uid, 6500);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

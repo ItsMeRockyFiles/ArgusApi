@@ -132,20 +132,28 @@ app.post('/api/screen', handleScreenRequest);
 
 // Get SDN entry by UID
 app.get('/api/sdn/:uid', (req, res) => {
-  const uid = req.params.uid;
-  const record = store.getEntryByUid(uid);
+  const uid = parseInt(req.params.uid, 10);
+  if (Number.isNaN(uid)) {
+    return res.status(400).json({ error: 'Invalid UID parameter. Must be a numeric identifier.' });
+  }
 
+  const record = store.getEntryByUid(uid);
   if (!record) {
-    return res.status(404).json({
-      error: `SDN record with UID ${uid} not found.`,
-    });
+    return res.status(404).json({ error: 'Record not found', uid });
   }
 
   res.json({ record });
 });
 
-// Trigger Rebuild Endpoint
+// Trigger Rebuild Endpoint (Admin / Cron)
 app.post('/api/rebuild', async (req, res) => {
+  const secret = process.env.REBUILD_SECRET || process.env.CRON_SECRET;
+  const authHeader = req.headers.authorization || req.headers['x-rebuild-secret'];
+
+  if (!secret || (authHeader !== `Bearer ${secret}` && authHeader !== secret)) {
+    return res.status(401).json({ error: 'Unauthorized. Admin secret required for manual rebuilds.' });
+  }
+
   if (process.env.VERCEL) {
     return res.status(501).json({
       error: 'Database rebuild endpoint disabled in serverless deployment.',
